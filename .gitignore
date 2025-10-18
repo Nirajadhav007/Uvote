@@ -3,6 +3,7 @@ node_modules
 
 # Environment variables
 ./env
-backend/youvote_api/src/.env
+
 ./env
 backend/.env 
+backend/youvote_api/src/.env

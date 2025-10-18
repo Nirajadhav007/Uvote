@@ -1,30 +1,36 @@
+require('dotenv').config(); // Load .env at the very top
 const express = require('express');
 const mongoose = require('mongoose');
 const routes = require('./routes/routes');
 const cors = require('cors');
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3002;
 
-// Explicitly configure CORS to allow all origins
+// CORS
 app.use(cors({
   origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
 
 app.use(express.json());
 
-mongoose.connect('mongodb://127.0.0.1:27017/votingSystem')
-  .then(() => {
-    console.log('Connected to MongoDB');
-  })
-  .catch((error) => {
-    console.error('Error connecting to MongoDB:', error);
-  });
+// Debug: check if URI is loaded
+console.log('MongoDB URI:', process.env.MONGODB_URI);
 
+// Connect to MongoDB using the URI from .env
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+.then(() => console.log('✅ MongoDB connected'))
+.catch(err => console.error('❌ MongoDB connection failed:', err));
+
+// Routes
 app.use('/', routes);
 
+// Start server
 app.listen(PORT, () => {
   console.log(`Server is running on http://127.0.0.1:${PORT}`);
 });

@@ -3,211 +3,199 @@ const User = require('../models/userModel');
 const { secretKey } = require('../config');
 const { v4: uuidv4 } = require('uuid');
 
-//nodemailer
+// Nodemailer
 const nodemailer = require('nodemailer');
-//vonage
-const { Vonage } = require('@vonage/server-sdk');
+// Vonage
+// const { Vonage } = require('@vonage/server-sdk'); // Commented out as it's no longer used
 
-
-// Configure the transporter for Gmail
+// Configure Gmail transporter
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
   secure: true,
   auth: {
     user: 'youvote7@gmail.com',
-    pass: 'rkwx gatx akot myxd',
+    pass: 'rkwx gatx akot myxd', // App password
   },
 });
 
-// Set up Vonage
+// Configure Vonage - Commented out
+/*
 const vonage = new Vonage({
   apiKey: "30311db1",
   apiSecret: "f2kTHwjQ1D7ErTpI"
-})
+});
+*/
 
+// ------------------- REGISTER USER -------------------
 exports.registerUser = async (req, res) => {
   try {
     const { firstName, lastName, email, phoneNumber } = req.body;
-    const emailCode = uuidv4().slice(0, 6);
-    const phoneCode = uuidv4().slice(0, 6);
 
-    // Check for empty fields
+    // Validate input
     if (!firstName || !lastName || !email || !phoneNumber) {
-      return res.status(400).json({ error: 'All fields must be filled out.' });
+      return res.status(400).json({ error: 'All fields are required.' });
     }
-
-    // Custom validation for firstName
-    if (!/^[a-zA-Z]+$/.test(firstName)) {
-      return res.status(400).json({ error: 'First name must only contain alphabetical characters.' });
+    if (!/^[a-zA-Z]+$/.test(firstName) || !/^[a-zA-Z]+$/.test(lastName)) {
+      return res.status(400).json({ error: 'Names must contain only letters.' });
     }
-
-    // Custom validation for lastName
-    if (!/^[a-zA-Z]+$/.test(lastName)) {
-      return res.status(400).json({ error: 'Last name must only contain alphabetical characters.' });
-    }
-
-    // Custom validation for email
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: 'Invalid email address.' });
     }
 
-    // Check for unique email and phoneNumber
-    const isEmailUnique = await User.findOne({ email });
-    const isPhoneNumberUnique = await User.findOne({ phoneNumber });
-
-    if (isEmailUnique) {
-      return res.status(400).json({ error: 'Email is already in use.' });
+    // Check uniqueness
+    if (await User.findOne({ email })) {
+      return res.status(400).json({ error: 'Email already in use.' });
+    }
+    if (await User.findOne({ phoneNumber })) {
+      return res.status(400).json({ error: 'Phone number already in use.' });
     }
 
-    if (isPhoneNumberUnique) {
-      return res.status(400).json({ error: 'Phone number is already in use.' });
-    }
+    // Generate OTP code for email only
+    const emailCode = uuidv4().slice(0, 6);
 
     const user = new User({
       firstName,
       lastName,
       email,
       phoneNumber,
-      emailVerified: false,
-      phoneVerified: false,
       emailVerificationCode: emailCode,
-      phoneVerificationCode: phoneCode,
+      // phoneVerificationCode: phoneCode, // Removed phone verification
+      emailVerified: false,
+      // phoneVerified: false, // Removed phone verification
     });
 
     await user.save();
 
-    // Send verification email
-    const mailOptions = {
+    // Send Email OTP
+    await transporter.sendMail({
       from: 'youvote7@gmail.com',
       to: email,
       subject: 'Email Verification Code',
-      text: `Welcome to YouVote, ${firstName} ${lastName}!\n\nThank you for registering on our platform. To complete your registration, please verify your email address by entering the following verification code in the app:\n\nVerification Code: ${emailCode}\n\nIf you did not request this code, please ignore this email.\n\nBest regards,\nThe YouVote Team`,
-    };
+      text: `Welcome ${firstName}!\nYour email verification code is: ${emailCode}`,
+    });
+    console.log(`Email OTP sent to ${email}`);
 
-    transporter.sendMail(mailOptions);
+    // Send Phone OTP - Commented out
+    /*
+    const to = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+    const text = `Your verification code is: ${phoneCode}`;
 
-    // Send verification SMS
-    // const from = "YouVote"
-    // const to = phoneNumber
-    // const text = `Your verification code is: ${phoneCode}\n\n`
-
-    // async function sendSMS() {
-    //     await vonage.sms.send({to, from, text})
-    //         .then(resp => { console.log('Message sent successfully'); console.log(resp); })
-    //         .catch(err => { console.log('There was an error sending the messages.'); console.error(err); });
-    // }
-
-    // sendSMS();
-
-    res.status(201).json({ message: 'User registered successfully. Verification codes sent to email and phone.' });
-    } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
+    try {
+      const resp = await vonage.sms.send({ to, from: "YouVote", text });
+      console.log('Phone OTP sent successfully:', resp);
+    } catch (err) {
+      console.error('Error sending phone OTP:', err);
     }
-  };
+    */
 
-// Verification endpoint
-exports.verify = async (req, res) => {
-  try {
-    const { email, emailCode, phoneCode } = req.body;
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    if (user.emailVerificationCode === emailCode && user.phoneVerificationCode === phoneCode) {
-      user.emailVerified = true;
-      user.phoneVerified = true;
-      await user.save();
-
-      res.status(200).json({ message: 'Email and phone number verified successfully.' });
-    } else {
-      res.status(400).json({ error: 'Invalid verification codes' });
-    }
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(201).json({ message: 'User registered successfully. OTP sent to email.' });
+  } catch (err) {
+    console.error('registerUser error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 };
 
+// ------------------- VERIFY EMAIL -------------------
+exports.verifyEmail = async (req, res) => {
+  try {
+    // Only email and emailCode are needed now
+    const { email, emailCode } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user) return res.status(404).json({ error: 'User not found.' });
+
+    if (user.emailVerificationCode !== emailCode) {
+      return res.status(400).json({ error: 'Invalid email verification code.' });
+    }
+    
+    // Phone verification check is removed
+    /*
+    if (user.phoneVerificationCode !== phoneCode) {
+      return res.status(400).json({ error: 'Invalid phone verification code.' });
+    }
+    */
+
+    user.emailVerified = true;
+    // user.phoneVerified = true; // Removed phone verification
+    await user.save();
+
+    return res.status(200).json({ message: 'Email verified successfully.' });
+  } catch (err) {
+    console.error('verify error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ------------------- LOGIN -------------------
 exports.login = async (req, res) => {
   try {
     const { email } = req.body;
     const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    if (!user.emailVerified || !user.phoneVerified) {
-      return res.status(403).json({ error: 'Email and phone number not verified' });
+    if (!user) return res.status(404).json({ error: 'User not found.' });
+    
+    // Check only for email verification
+    if (!user.emailVerified) {
+      return res.status(403).json({ error: 'Email must be verified.' });
     }
 
     const loginId = uuidv4().slice(0, 18);
     const loginPassword = uuidv4().slice(0, 8);
 
-    // Save the login ID and password temporarily
     user.loginId = loginId;
     user.loginPassword = loginPassword;
     await user.save();
 
-    // Send login ID and password to email
-    const mailOptions = {
+    // Send Email
+    await transporter.sendMail({
       from: 'youvote7@gmail.com',
       to: email,
-      subject: 'Login ID and Password',
-      text: `Your login ID is:\n\n${loginId}\n\nand your password is:\n\n${loginPassword}\n\n`,
-    };
+      subject: 'Login Credentials',
+      text: `Login ID: ${loginId}\nPassword: ${loginPassword}`,
+    });
+    console.log(`Login credentials sent to email: ${email}`);
 
-    transporter.sendMail(mailOptions);
+    // Send SMS - Commented out
+    /*
+    const to = user.phoneNumber.startsWith('+') ? user.phoneNumber : `+${user.phoneNumber}`;
+    const text = `Login ID: ${loginId}\nPassword: ${loginPassword}`;
 
-    // Send login ID and password to phone
-    // const from = "YouVote"
-    // const to = user.phoneNumber
-    // const text = `Your login ID is:\n\n${loginId}\n\nand your password is:\n\n${loginPassword}\n\n`
+    try {
+      const resp = await vonage.sms.send({ to, from: "YouVote", text });
+      console.log('Login credentials sent via SMS:', resp);
+    } catch (err) {
+      console.error('Error sending SMS credentials:', err);
+    }
+    */
 
-    // async function sendSMS() {
-    //     await vonage.sms.send({to, from, text})
-    //         .then(resp => { console.log('Message sent successfully'); console.log(resp); })
-    //         .catch(err => { console.log('There was an error sending the messages.'); console.error(err); });
-    // }
-
-    // sendSMS();
-
-    res.status(200).json({ message: 'Login ID and password sent to email and phone' });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(200).json({ message: 'Login ID and password sent to your email.' });
+  } catch (err) {
+    console.error('login error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 };
 
-// Endpoint to validate login ID and password
+// ------------------- VALIDATE LOGIN -------------------
 exports.validateLogin = async (req, res) => {
   try {
     const { email, loginId, loginPassword } = req.body;
     const user = await User.findOne({ email });
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    if (!user) return res.status(404).json({ error: 'User not found.' });
 
     if (user.loginId === loginId && user.loginPassword === loginPassword) {
-      // Generate a JWT token
       const token = jwt.sign({ email: user.email }, secretKey, { expiresIn: '1h' });
 
-      // Clear temporary login credentials
       user.loginId = undefined;
       user.loginPassword = undefined;
       await user.save();
 
-      res.status(200).json({ message: 'Login successful', user, token });
+      return res.status(200).json({ message: 'Login successful', user, token });
     } else {
-      res.status(400).json({ error: 'Invalid login ID or password' });
+      return res.status(400).json({ error: 'Invalid login ID or password.' });
     }
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
+  } catch (err) {
+    console.error('validateLogin error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 };

@@ -7,9 +7,12 @@ const router = express.Router();
 
 // User routes
 router.post('/register', authController.registerUser);
-router.post('/verify', authController.verify);
+// router.post('/verify', authController.verify);
 router.post('/login', authController.login);
 router.post('/validate-login', authController.validateLogin);
+// This is the CORRECT line for your routes.js file
+// CORRECT
+router.post('/verifyEmail', authController.verifyEmail);
 
 // Election routes
 router.post('/elections', electionController.createElection);

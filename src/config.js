@@ -1,6 +1,21 @@
-//256 bits hexadecimal private keys
+const mongoose = require('mongoose');
+require('dotenv').config();
+
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log("✅ MongoDB connected successfully!");
+  } catch (err) {
+    console.error("❌ MongoDB connection failed:", err.message);
+    process.exit(1);
+  }
+};
+
+module.exports = connectDB;
+// Make sure you have a strong, random string here
 module.exports = {
-    secretKey: 'b6f13d027190af455838d49c8af1a03adb385ef9cbc07008998b61a4780ffcc8',
-    privateKey1: 'b1946ac92492d2347c6235b4d2611184b1946ac92492d2347c6235b4d2611184',
-    privateKey2: '5f2c27a97f28b36ff6bdbf0f9acb3d4a5f2c27a97f28b36ff6bdbf0f9acb3d4a',
+  secretKey: 'your-super-secret-key-that-is-long-and-random' 
 };
